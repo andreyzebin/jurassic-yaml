@@ -1,0 +1,78 @@
+legal_model:
+  parties:
+    - id: bank
+      name: Bank
+      type: organization
+    - id: partner
+      name: Partner
+      type: organization
+    - id: customer
+      name: Customer
+      type: individual
+
+  objects:
+    - id: bonus_5_percent
+      name: "Bonus 5%"
+      type: loyalty_bonus
+      value: "5% от суммы покупки"
+    - id: product_list
+      name: "Product List"
+      type: product_catalog
+    - id: penalty_10000_per_day
+      name: "Penalty 10,000 ₽/day"
+      type: monetary_penalty
+      amount: 10000
+      currency: RUB
+
+  events:
+    - id: purchase
+      name: "Purchase"
+      type: transaction
+    - id: period_2025_09
+      name: "Promo period"
+      type: time_interval
+      start_date: "2025-09-01"
+      end_date: "2025-09-30"
+    - id: data_transfer
+      name: "Data Transfer"
+      type: information_exchange
+      deadline: "2 working days after purchase"
+
+  relations:
+    - from: partner
+      to: bonus_5_percent
+      type: obligation
+      conditions:
+        - event: purchase
+        - object_in: product_list
+        - payment_method: bank_card
+        - date_in: period_2025_09
+      beneficiary: customer
+
+    - from: partner
+      to: data_transfer
+      type: obligation
+      conditions:
+        - within: "2 working days after purchase"
+      beneficiary: bank
+
+    - from: bank
+      to: bonus_5_percent
+      type: obligation
+      conditions:
+        - based_on: data_transfer
+      beneficiary: customer
+
+    - from: bank
+      to: partner
+      type: obligation
+      action: "provide_information_materials"
+      conditions:
+        - before: period_2025_09.start_date
+
+    - from: partner
+      to: penalty_10000_per_day
+      type: liability
+      conditions:
+        - breach: data_transfer.deadline
+      beneficiary: bank
