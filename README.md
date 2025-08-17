@@ -1,3 +1,5 @@
+# База
+
 Юридический документ вполне можно свести к «математическому скелету» — модель, которая будет ближе к формальной логике или теории графов, чем к обычному тексту.
 Если рассматривать это системно, получится примерно так:
 
@@ -41,7 +43,78 @@
 В программировании это часто описывают как онтологию (OWL, RDF), а в юриспруденции есть попытки сделать LegalRuleML или LKIF-Core — формальные языки для описания норм.
 
 
-## Пример
+# Пример
+
+Окей, давай возьмём условный сценарий:
+**Банк** — организатор программы лояльности,
+**Партнёр** — торговая сеть,
+**Акция** — начисление 5% бонусов клиентам банка при покупке определённого товара у партнёра в период акции.
+
+Я опишу сначала **текстовое условие** (как в реальном документе), а потом — **«математический скелет»** в виде графа.
+
+---
+
+## 1. Фрагмент юридического текста (упрощённый)
+
+**Раздел: Права и обязанности сторон**
+
+1. Партнёр обязуется:
+   1.1. Предоставлять клиентам банка, оплатившим покупку картой банка, бонусы в размере 5% от суммы покупки товара из Перечня (Приложение №1) в период с 01.09.2025 по 30.09.2025.
+   1.2. Передавать банку информацию о покупках для начисления бонусов в течение 2 рабочих дней с момента совершения покупки.
+
+2. Банк обязуется:
+   2.1. Начислять клиентам бонусы на основании данных, полученных от партнёра.
+   2.2. Обеспечивать партнёра информационными материалами об акции.
+
+**Раздел: Ответственность**
+3\. В случае нарушения сроков передачи данных, партнёр уплачивает банку штраф в размере 10 000 ₽ за каждый день просрочки.
+
+---
+
+## 2. Математический скелет (графовая модель)
+
+**Вершины (Nodes)**:
+
+* `Bank` — субъект
+* `Partner` — субъект
+* `Customer` — субъект
+* `Bonus_5_percent` — объект (бонус в % от суммы покупки)
+* `Product_List` — объект (перечень товаров акции)
+* `Purchase` — событие
+* `Period_01.09-30.09.2025` — событие/условие
+* `Data_Transfer` — событие (передача данных)
+* `Penalty_10000_per_day` — объект (штраф)
+
+**Рёбра (Edges, типизированные)**:
+
+1. `(Partner) --[обязан]--> (Bonus_5_percent)`
+
+    * Условие: `(Purchase) ∧ (Product ∈ Product_List) ∧ (Оплата картой Bank) ∧ (Дата ∈ Period)`
+    * Получатель: `Customer`
+
+2. `(Partner) --[обязан]--> (Data_Transfer)`
+
+    * Условие: `Срок ≤ 2 рабочих дня после Purchase`
+    * Получатель: `Bank`
+
+3. `(Bank) --[обязан]--> (Начисление Bonus_5_percent)`
+
+    * Условие: `На основании Data_Transfer`
+    * Получатель: `Customer`
+
+4. `(Bank) --[обязан]--> (Предоставление инфо-материалов)`
+
+    * Условие: `До начала акции`
+    * Получатель: `Partner`
+
+5. `(Partner) --[несёт ответственность]--> (Penalty_10000_per_day)`
+
+    * Условие: `Нарушение срока Data_Transfer`
+    * Получатель: `Bank`
+
+---
+
+**Yaml**:
 
 ```yaml
 legal_model:
@@ -61,11 +134,28 @@ legal_model:
       name: "Bonus 5%"
       type: loyalty_bonus
       value: "5% от суммы покупки"
+    - id: product_list
+      name: "Product List"
+      type: product_catalog
+    - id: penalty_10000_per_day
+      name: "Penalty 10,000 ₽/day"
+      type: monetary_penalty
+      amount: 10000
+      currency: RUB
 
   events:
     - id: purchase
       name: "Purchase"
       type: transaction
+    - id: period_2025_09
+      name: "Promo period"
+      type: time_interval
+      start_date: "2025-09-01"
+      end_date: "2025-09-30"
+    - id: data_transfer
+      name: "Data Transfer"
+      type: information_exchange
+      deadline: "2 working days after purchase"
 
   relations:
     - from: partner
@@ -77,6 +167,35 @@ legal_model:
         - payment_method: bank_card
         - date_in: period_2025_09
       beneficiary: customer
+
+    - from: partner
+      to: data_transfer
+      type: obligation
+      conditions:
+        - within: "2 working days after purchase"
+      beneficiary: bank
+
+    - from: bank
+      to: bonus_5_percent
+      type: obligation
+      conditions:
+        - based_on: data_transfer
+      beneficiary: customer
+
+    - from: bank
+      to: partner
+      type: obligation
+      action: "provide_information_materials"
+      conditions:
+        - before: period_2025_09.start_date
+
+    - from: partner
+      to: penalty_10000_per_day
+      type: liability
+      conditions:
+        - breach: data_transfer.deadline
+      beneficiary: bank
+
 ```
 Тут:
 
